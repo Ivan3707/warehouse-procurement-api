@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: spa-postgres
+    environment:
+      POSTGRES_DB: spa
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - spa_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d spa"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spa-api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/spa
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "uv run alembic upgrade head &&
+            uv run python -m app.infrastructure.database.seed &&
+            uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+volumes:
+  spa_postgres_data:
